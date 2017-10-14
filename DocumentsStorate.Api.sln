@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26730.16
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentsStorate.Api", "DocumentsStorate.Api\DocumentsStorate.Api.csproj", "{403950E7-5D94-49E4-8769-5F668FA5910C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Elasticsearch.GridFS", "Elasticsearch.GridFS\Elasticsearch.GridFS.csproj", "{AB95430F-15E6-4726-ADBC-9B753A8EBF63}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{403950E7-5D94-49E4-8769-5F668FA5910C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{403950E7-5D94-49E4-8769-5F668FA5910C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{403950E7-5D94-49E4-8769-5F668FA5910C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{403950E7-5D94-49E4-8769-5F668FA5910C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB95430F-15E6-4726-ADBC-9B753A8EBF63}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB95430F-15E6-4726-ADBC-9B753A8EBF63}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB95430F-15E6-4726-ADBC-9B753A8EBF63}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB95430F-15E6-4726-ADBC-9B753A8EBF63}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E659303F-B72B-4BBB-B7F6-F1B4663408D8}
+	EndGlobalSection
+EndGlobal
