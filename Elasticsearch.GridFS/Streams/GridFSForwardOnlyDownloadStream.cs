@@ -11,11 +11,11 @@ namespace Elasticsearch.GridFS.Streams
     internal class GridFSForwardOnlyDownloadStream : GridFSDownloadStreamBase
     {
         // private fields
-        private List<FileChunck> _batch;
+        private FileChunck _chunck;
         private long _batchPosition;
         private readonly bool _checkMD5;
         private bool _closed;
-        private IAsyncCursor<BsonDocument> _cursor;
+        private IEnumerator<FileChunck> _cursor;
         private bool _disposed;
         private readonly int _lastChunkNumber;
         private readonly int _lastChunkSize;
@@ -97,26 +97,26 @@ namespace Elasticsearch.GridFS.Streams
             return bytesRead;
         }
 
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            ThrowIfDisposed();
+        //public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        //{
+        //    ThrowIfDisposed();
 
-            var bytesRead = 0;
-            while (count > 0 && _position < FileInfo.Length)
-            {
-                var segment = await GetSegmentAsync(cancellationToken).ConfigureAwait(false);
+        //    var bytesRead = 0;
+        //    while (count > 0 && _position < FileInfo.Length)
+        //    {
+        //        var segment = await GetSegmentAsync(cancellationToken).ConfigureAwait(false);
 
-                var partialCount = Math.Min(count, segment.Count);
-                Buffer.BlockCopy(segment.Array, segment.Offset, buffer, offset, partialCount);
+        //        var partialCount = Math.Min(count, segment.Count);
+        //        Buffer.BlockCopy(segment.Array, segment.Offset, buffer, offset, partialCount);
 
-                bytesRead += partialCount;
-                offset += partialCount;
-                count -= partialCount;
-                _position += partialCount;
-            }
+        //        bytesRead += partialCount;
+        //        offset += partialCount;
+        //        count -= partialCount;
+        //        _position += partialCount;
+        //    }
 
-            return bytesRead;
-        }
+        //    return bytesRead;
+        //}
 
         public override long Seek(long offset, SeekOrigin origin)
         {
@@ -175,66 +175,23 @@ namespace Elasticsearch.GridFS.Streams
             }
         }
 
-        private FindOperation<BsonDocument> CreateFirstBatchOperation()
-        {
-            var chunksCollectionNamespace = Bucket.GetChunksCollectionNamespace();
-            var messageEncoderSettings = Bucket.GetMessageEncoderSettings();
-#pragma warning disable 618
-            var filter = new BsonDocument("files_id", _idAsBsonValue);
-#pragma warning restore
-            var sort = new BsonDocument("n", 1);
-
-            return new FindOperation<BsonDocument>(
-                chunksCollectionNamespace,
-                BsonDocumentSerializer.Instance,
-                messageEncoderSettings)
-            {
-                Filter = filter,
-                Sort = sort
-            };
-        }
-
         private void GetFirstBatch(CancellationToken cancellationToken)
         {
-            var operation = CreateFirstBatchOperation();
-            _cursor = operation.Execute(Binding, cancellationToken);
+            _cursor = new FileChunckEnumerable(Bucket.ConnectionSettings, FileInfo.Id, Bucket.Options.ChuncksindexName).GetEnumerator();
             GetNextBatch(cancellationToken);
-        }
-
-        private async Task GetFirstBatchAsync(CancellationToken cancellationToken)
-        {
-            var operation = CreateFirstBatchOperation();
-            _cursor = await operation.ExecuteAsync(Binding, cancellationToken).ConfigureAwait(false);
-            await GetNextBatchAsync(cancellationToken).ConfigureAwait(false);
         }
 
         private void GetNextBatch(CancellationToken cancellationToken)
         {
-            List<FileChunck> batch;
-            do
-            {
-                var hasMore = _cursor.MoveNext(cancellationToken);
-                batch = hasMore ? _cursor.Current.ToList() : null;
-            }
-            while (batch != null && batch.Count == 0);
+            FileChunck chunck;
 
-            ProcessNextBatch(batch);
+            var hasChunck = _cursor.MoveNext();
+            chunck = hasChunck ? _cursor.Current : null;
+
+            ProcessNextBatch(chunck);
         }
 
-        private async Task GetNextBatchAsync(CancellationToken cancellationToken)
-        {
-            List<FileChunck> batch;
-            do
-            {
-                var hasMore = await _cursor.MoveNextAsync(cancellationToken).ConfigureAwait(false);
-                batch = hasMore ? _cursor.Current.ToList() : null;
-            }
-            while (batch != null && batch.Count == 0);
-
-            ProcessNextBatch(batch);
-        }
-
-        private void ProcessNextBatch(List<FileChunck> batch)
+        private void ProcessNextBatch(FileChunck batch)
         {
             if (batch == null)
             {
@@ -243,90 +200,81 @@ namespace Elasticsearch.GridFS.Streams
 #pragma warning restore
             }
 
-            var previousBatch = _batch;
-            _batch = batch;
+            var previousBatch = _chunck;
+            _chunck = batch;
 
             if (previousBatch != null)
             {
-                _batchPosition += previousBatch.Count * FileInfo.ChunkSize;
+                _batchPosition +=  FileInfo.ChunkSize;
             }
 
-            var lastChunkInBatch = _batch.Last();
-            if (lastChunkInBatch.N == _lastChunkNumber + 1 && lastChunkInBatch.Data.Length == 0)
+            if (_chunck.N == _lastChunkNumber + 1 && _chunck.Data.Length == 0)
             {
-                _batch.RemoveAt(_batch.Count - 1);
+                return;
             }
 
-            foreach (var chunk in _batch)
+            var n = _chunck.N;
+            var bytes = _chunck.Data;
+
+            if (n != _nextChunkNumber)
             {
-                var n = chunk.N;
-                var bytes = chunk.Data;
-
-                if (n != _nextChunkNumber)
-                {
 #pragma warning disable 618
-                    throw new Exception("missing");//throw new GridFSChunkException(_idAsBsonValue, _nextChunkNumber, "missing");
+                throw new Exception($"missing the chunck {n} on file {FileInfo.Id}");//throw new GridFSChunkException(_idAsBsonValue, _nextChunkNumber, "missing");
 #pragma warning restore
-                }
-                _nextChunkNumber++;
+            }
+            _nextChunkNumber++;
 
-                var expectedChunkSize = n == _lastChunkNumber ? _lastChunkSize : FileInfo.ChunkSize;
-                if (bytes.Length != expectedChunkSize)
-                {
+            var expectedChunkSize = n == _lastChunkNumber ? _lastChunkSize : FileInfo.ChunkSize;
+            if (bytes.Length != expectedChunkSize)
+            {
 #pragma warning disable 618
-                    throw new Exception("the wrong size");//throw new GridFSChunkException(_idAsBsonValue, _nextChunkNumber, "the wrong size");
+                throw new Exception("the wrong size");//throw new GridFSChunkException(_idAsBsonValue, _nextChunkNumber, "the wrong size");
 #pragma warning restore
-                }
+            }
 
-                if (_checkMD5)
-                {
-                    _md5.AppendData(bytes, 0, bytes.Length);
-                }
+            if (_checkMD5)
+            {
+                _md5.AppendData(bytes, 0, bytes.Length);
             }
         }
 
         private ArraySegment<byte> GetSegment(CancellationToken cancellationToken)
         {
-            var batchIndex = (int)((_position - _batchPosition) / FileInfo.ChunkSize);
-
             if (_cursor == null)
             {
                 GetFirstBatch(cancellationToken);
             }
-            else if (batchIndex == _batch.Count)
+            else
             {
                 GetNextBatch(cancellationToken);
-                batchIndex = 0;
             }
 
-            return GetSegmentHelper(batchIndex);
+            return GetSegmentHelper();
         }
 
-        private async Task<ArraySegment<byte>> GetSegmentAsync(CancellationToken cancellationToken)
+        //private async Task<ArraySegment<byte>> GetSegmentAsync(CancellationToken cancellationToken)
+        //{
+        //    var batchIndex = (int)((_position - _batchPosition) / FileInfo.ChunkSize);
+
+        //    if (_cursor == null)
+        //    {
+        //        await GetFirstBatchAsync(cancellationToken).ConfigureAwait(false);
+        //    }
+        //    else if (batchIndex == _chunck.Count)
+        //    {
+        //        await GetNextBatchAsync(cancellationToken).ConfigureAwait(false);
+        //        batchIndex = 0;
+        //    }
+
+        //    return GetSegmentHelper(batchIndex);
+        //}
+
+        private ArraySegment<byte> GetSegmentHelper()
         {
-            var batchIndex = (int)((_position - _batchPosition) / FileInfo.ChunkSize);
-
-            if (_cursor == null)
-            {
-                await GetFirstBatchAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else if (batchIndex == _batch.Count)
-            {
-                await GetNextBatchAsync(cancellationToken).ConfigureAwait(false);
-                batchIndex = 0;
-            }
-
-            return GetSegmentHelper(batchIndex);
-        }
-
-        private ArraySegment<byte> GetSegmentHelper(int batchIndex)
-        {
-            var bytes = _batch[batchIndex].Data;
+            var bytes = _chunck.Data;
             var segmentOffset = (int)(_position % FileInfo.ChunkSize);
             var segmentCount = bytes.Length - segmentOffset;
             return new ArraySegment<byte>(bytes, segmentOffset, segmentCount);
         }
     }
-
-
 }

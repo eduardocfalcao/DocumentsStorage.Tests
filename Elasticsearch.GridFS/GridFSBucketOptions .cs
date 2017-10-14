@@ -28,5 +28,7 @@ namespace Elasticsearch.GridFS
         public string BucketName { get; }
 
         public int ChunkSizeBytes { get; }
+
+        public string ChuncksindexName => string.Concat(BucketName, ".", "chuncks");
     }
 }

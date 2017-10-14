@@ -33,9 +33,25 @@ namespace DocumentsStorate.Api
     {
         public static void Main(string[] args)
         {
-            UploadTests();
+            DownloadStreamTests();
 
             Console.ReadKey();
+        }
+
+        public static void DownloadStreamTests()
+        {
+            var fileId = Guid.Parse("04d8ac7b-a08c-4b83-90b6-7c006846c829");
+
+            var elkUrl = new Uri("http://localhost:9200/");
+            var connection = new ConnectionSettings(elkUrl);
+            var bucket = new GridFSBucket(connection);
+
+            Console.WriteLine("Downloading file...");
+            using (var fileStream = File.Create(@"C:\files\testdoc0.docx"))
+            {
+                bucket.DownloadToStreamAsync(fileId, fileStream).Wait();
+            }
+            Console.WriteLine("The file was downloaded.");
         }
 
         public static void UploadTests()

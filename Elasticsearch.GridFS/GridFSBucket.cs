@@ -66,18 +66,50 @@ namespace Elasticsearch.GridFS
             }
         }
 
-        public GridFSDownloadStream OpenDownloadStream(Guid id, GridFSDownloadOptions options = null, CancellationToken cancellationToken = default(CancellationToken))
+        public GridFSDownloadStream OpenDownloadStream(Guid fileId, 
+            GridFSDownloadOptions options = null, 
+            CancellationToken cancellationToken = default(CancellationToken))
         {
             options = options ?? new GridFSDownloadOptions();
 
-            var fileInfo = GetFileInfo(id, cancellationToken);
+            var fileInfo = GetFileInfo(fileId, cancellationToken);
             return CreateDownloadStream(fileInfo, options, cancellationToken);
+        }
+
+        public async Task DownloadToStreamAsync(Guid fileId, Stream destination, 
+            GridFSDownloadOptions options = null, 
+            CancellationToken cancellationToken = default(CancellationToken))
+        {
+            options = options ?? new GridFSDownloadOptions();
+
+            var fileInfo = GetFileInfo(fileId, cancellationToken);
+            await DownloadToStreamHelperAsync(fileInfo, destination, options, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task DownloadToStreamHelperAsync(FileDocument fileInfo, Stream destination, GridFSDownloadOptions options, CancellationToken cancellationToken)
+        {
+            var checkMD5 = options.CheckMD5 ?? false;
+            using (var source = new GridFSForwardOnlyDownloadStream(this, fileInfo, checkMD5))
+            {
+                var count = source.Length;
+                var buffer = new byte[fileInfo.ChunkSize];
+
+                while (count > 0)
+                {
+                    var partialCount = (int)Math.Min(buffer.Length, count);
+                    source.Read(buffer, 0, partialCount);
+                    await destination.WriteAsync(buffer, 0, partialCount, cancellationToken).ConfigureAwait(false);
+                    count -= partialCount;
+                }
+
+                await source.CloseAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
 
         private FileDocument GetFileInfo(Guid id, CancellationToken cancellationToken)
         {
-            var client = new ElasticClient(ConnectionSettings.DefaultIndex("files"));
-            var response = client.Get(new DocumentPath<FileDocument>(new Id(id)));
+            var client = new ElasticClient(ConnectionSettings.DefaultIndex("fs.files"));
+            var response = client.Get<FileDocument>(new DocumentPath<FileDocument>(new Id(id.ToString())));
             return response.Source;
         }
 
@@ -86,7 +118,7 @@ namespace Elasticsearch.GridFS
             var checkMD5 = options.CheckMD5 ?? false;
             var seekable = options.Seekable ?? false;
 
-            return new GridFSForwardOnlyDownloadStream(this, binding, fileInfo, checkMD5);
+            return new GridFSForwardOnlyDownloadStream(this, fileInfo, checkMD5);
         }
 
         private  GridFSUploadStream OpenUploadStream(Guid id, string fileName, 
