@@ -33,9 +33,21 @@ namespace DocumentsStorate.Api
     {
         public static void Main(string[] args)
         {
-            DownloadStreamTests();
+            UploadAllFiles();
 
             Console.ReadKey();
+        }
+
+        public static void UploadAllFiles()
+        {
+            var system = ActorSystem.Create("FilStorageSystem");
+            var routerActor = system.ActorOf(Props.Create<RouterActor>());
+
+            var files = Directory.GetFiles(@"D:\files\");
+            foreach(var file in files)
+            {
+                routerActor.Tell(new FileStoreMessage() { Filepath = file });
+            }
         }
 
         public static void DownloadStreamTests()

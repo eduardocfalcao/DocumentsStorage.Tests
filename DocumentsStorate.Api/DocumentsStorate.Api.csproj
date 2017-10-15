@@ -93,8 +93,10 @@
   <ItemGroup>
     <Compile Include="Actors\DownloadFileActor.cs" />
     <Compile Include="Actors\FileStoreMessage.cs" />
+    <Compile Include="Actors\IndexFileActor.cs" />
     <Compile Include="Actors\RouterActor.cs" />
     <Compile Include="Actors\StorageActor.cs" />
+    <Compile Include="Actors\StoreFileActor.cs" />
     <Compile Include="Controllers\FileStorageController.cs" />
     <Compile Include="IStoreService.cs" />
     <Compile Include="Program.cs" />
