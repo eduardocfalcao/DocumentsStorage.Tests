@@ -15,6 +15,7 @@ namespace DocumentsStorate.Api.Actors
         public RouterActor()
         {
             Receive<DownloadMessage>(m => DownloadActorPoll.Forward(m));
+            Receive<StreamDownloadMessage>(m => DownloadActorPoll.Forward(m));
             Receive<FileStoreMessage>(m => UploadActorPoll.Forward(m));
 
         }

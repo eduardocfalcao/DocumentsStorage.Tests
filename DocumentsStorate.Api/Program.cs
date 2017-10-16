@@ -33,7 +33,7 @@ namespace DocumentsStorate.Api
     {
         public static void Main(string[] args)
         {
-            UploadAllFiles();
+            DownloadStreamTests();
 
             Console.ReadKey();
         }
@@ -52,18 +52,28 @@ namespace DocumentsStorate.Api
 
         public static void DownloadStreamTests()
         {
-            var fileId = Guid.Parse("04d8ac7b-a08c-4b83-90b6-7c006846c829");
 
-            var elkUrl = new Uri("http://localhost:9200/");
-            var connection = new ConnectionSettings(elkUrl);
-            var bucket = new GridFSBucket(connection);
+            var system = ActorSystem.Create("FilStorageSystem");
+            var routerActor = system.ActorOf(Props.Create<RouterActor>());
 
-            Console.WriteLine("Downloading file...");
-            using (var fileStream = File.Create(@"C:\files\testdoc0.docx"))
+            for (int i = 0; i < 10; i++)
             {
-                bucket.DownloadToStreamAsync(fileId, fileStream).Wait();
-            }
-            Console.WriteLine("The file was downloaded.");
+                var elkUrl = new Uri("http://localhost:9200/");
+                var connection = new ConnectionSettings(elkUrl);
+                var client = new ElasticClient(connection.DefaultIndex("fs.files"));
+
+                var result = client.Search<FileDocument>(s => s
+                    .From(i * 100)
+                    .Size(100)
+                );
+
+                Console.WriteLine($"The query was returned {result.Documents.Count} documents to the page {i}");
+
+                foreach (var document in result.Documents)
+                {
+                    routerActor.Tell(new StreamDownloadMessage() { DocId = document.Id, FileName = document.FileName });
+                }
+            }          
         }
 
         public static void UploadTests()
